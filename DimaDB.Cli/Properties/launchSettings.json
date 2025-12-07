@@ -1,0 +1,19 @@
+{
+  "profiles": {
+    "CLI": {
+      "commandName": "Project",
+      "commandLineArgs": "--ast-debug --query \"SELECT a,b FROM users WHERE a > 10 LIMIT 5;\""
+    },
+    "Repl": {
+      "commandName": "Project"
+    },
+    "Repl Debug": {
+      "commandName": "Project",
+      "commandLineArgs": "--ast-debug"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker",
+      "containerRunArguments": "-it"
+    }
+  }
+}
