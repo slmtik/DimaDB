@@ -6,39 +6,54 @@ namespace DimaDb.Core.Tests.Parsing;
 
 public class ParserTests
 {
+    private readonly ILexer _lexer;
+    private readonly Parser _parser;
+
+    public ParserTests()
+    {
+        _lexer = new Lexer();
+        _parser = new Parser();
+    }
+
     [Fact]
     public void Parse_SelectWithWhereAndLimit_ParsesCorrectly()
     {
-        var lexer = new Lexer(null);
-        var parser = new Parser(null);
-
         var sql = "SELECT name, age FROM users WHERE age > 30 LIMIT 10;";
-        var tokens = lexer.Tokenize(sql);
+        var tokens = _lexer.Tokenize(sql);
 
-        var statements = parser.Parse(tokens);
+        var statements = _parser.Parse(sql, tokens);
         Assert.Single(statements);
 
         var select = Assert.IsType<Statement.Select>(statements[0]);
 
         Assert.Equal(2, select.SelectItems.Length);
 
-        var firstSelectItem = select.SelectItems[0].Expression;
-        Assert.IsType<Expression.ColumnReference>(firstSelectItem);
+        var firstSelectItem = select.SelectItems[0];
+        Assert.IsType<Component.ExpressionItem>(firstSelectItem);
 
-        var firstColumn = (Expression.ColumnReference)firstSelectItem;
+        var firstExpressionItem = (Component.ExpressionItem)firstSelectItem;
+        Assert.IsType<Expression.ColumnReference>(firstExpressionItem.Expression);
+
+        var firstColumn = (Expression.ColumnReference)firstExpressionItem.Expression;
         Assert.Equal("name", firstColumn.Column.Name);
 
-        var secondSelectItem = select.SelectItems[1].Expression;
-        Assert.IsType<Expression.ColumnReference>(secondSelectItem);
+        var secondSelectItem = select.SelectItems[1];
+        Assert.IsType<Component.ExpressionItem>(secondSelectItem);
 
-        var secondColumn = (Expression.ColumnReference)secondSelectItem;
+        var secondEpxressionItem = (Component.ExpressionItem)secondSelectItem;
+        Assert.IsType<Expression.ColumnReference>(secondEpxressionItem.Expression);
+
+        var secondColumn = (Expression.ColumnReference)secondEpxressionItem.Expression;
         Assert.Equal("age", secondColumn.Column.Name);
 
         Assert.NotNull(select.FromClause);
         Assert.Equal("users", select.FromClause!.TableRefence.Table.Name);
 
         Assert.NotNull(select.WhereClause);
-        var where = Assert.IsType<Expression.BinaryOperation>(select.WhereClause);
+        var whereClause = Assert.IsType<Clause.WhereClause>(select.WhereClause);
+
+        Assert.NotNull(whereClause.Expression);
+        var where = Assert.IsType<Expression.BinaryOperation>(whereClause.Expression);
 
         var whereLeft = Assert.IsType<Expression.ColumnReference>(where.LeftOperand);
         Assert.Equal("age", whereLeft.Column.Name);
@@ -53,33 +68,27 @@ public class ParserTests
     [Fact]
     public void Parse_SelectStarAndQualifiedStar_ParsesCorrectly()
     {
-        var lexer = new Lexer(null);
-        var parser = new Parser(null);
-
         var sql = "SELECT *, users.* FROM users;";
-        var tokens = lexer.Tokenize(sql);
+        var tokens = _lexer.Tokenize(sql);
 
-        var statements = parser.Parse(tokens);
+        var statements = _parser.Parse(sql, tokens);
         Assert.Single(statements);
 
         var select = Assert.IsType<Statement.Select>(statements[0]);
         Assert.Equal(2, select.SelectItems.Length);
 
-        Assert.IsType<Expression.Star>(select.SelectItems[0].Expression);
-        var qualifiedStar = Assert.IsType<Expression.QualifiedStar>(select.SelectItems[1].Expression);
+        Assert.IsType<Component.Star>(select.SelectItems[0]);
+        var qualifiedStar = Assert.IsType<Component.QualifiedStar>(select.SelectItems[1]);
         Assert.Equal("users", qualifiedStar.Table.Name);
     }
 
     [Fact]
     public void Parse_CreateTable_ParsesCorrectly()
     {
-        var lexer = new Lexer(null);
-        var parser = new Parser(null);
-
         var sql = "CREATE TABLE users (id INT, name TEXT);";
-        var tokens = lexer.Tokenize(sql);
+        var tokens = _lexer.Tokenize(sql);
 
-        var statements = parser.Parse(tokens);
+        var statements = _parser.Parse(sql, tokens);
         Assert.Single(statements);
 
         var create = Assert.IsType<Statement.CreateTable>(statements[0]);
@@ -99,13 +108,10 @@ public class ParserTests
     [Fact]
     public void Parse_InsertInto_ParsesCorrectly()
     {
-        var lexer = new Lexer(null);
-        var parser = new Parser(null);
-
         var sql = "INSERT INTO users VALUES (1, 'abc');";
-        var tokens = lexer.Tokenize(sql);
+        var tokens = _lexer.Tokenize(sql);
 
-        var statements = parser.Parse(tokens);
+        var statements = _parser.Parse(sql, tokens);
         Assert.Single(statements);
 
         var insert = Assert.IsType<Statement.InsertInto>(statements[0]);
@@ -122,12 +128,11 @@ public class ParserTests
     [Fact]
     public void Parse_CreateTable_WithUnsupportedType_ReportsErrorAndRecovers()
     {
-        var lexer = new Lexer(null);
         var errorReporter = new ErrorReporter();
         var parser = new Parser(errorReporter);
 
         var sql = "CREATE TABLE users (id UNKNOWNTYPE, name TEXT);";
-        var tokens = lexer.Tokenize(sql);
+        var tokens = _lexer.Tokenize(sql);
 
         var originalError = Console.Error;
         try
@@ -135,7 +140,7 @@ public class ParserTests
             using var sw = new StringWriter();
             Console.SetError(sw);
 
-            var statements = parser.Parse(tokens);
+            var statements = parser.Parse(sql, tokens);
 
             var output = sw.ToString();
             Assert.Contains("Parser Error", output, System.StringComparison.OrdinalIgnoreCase);
@@ -147,5 +152,41 @@ public class ParserTests
         {
             Console.SetError(originalError);
         }
+    }
+
+    [Fact]
+    public void Parse_SelectWithEscapedQuotesInStringLiteral()
+    {
+        var sql = "SELECT 'a''b''c';";
+        var tokens = _lexer.Tokenize(sql);
+
+        var statements = _parser.Parse(sql, tokens);
+        Assert.Single(statements);
+
+        var select = Assert.IsType<Statement.Select>(statements[0]);
+        Assert.Single(select.SelectItems);
+
+        var expressionItem = Assert.IsType<Component.ExpressionItem>(select.SelectItems[0]);
+
+        var stringLiteral = Assert.IsType<Expression.StringLiteral>(expressionItem.Expression);
+        Assert.Equal("a'b'c", stringLiteral.Value);
+    }
+
+    [Fact]
+    public void Parse_NumberLiteralWithDecimalValue()
+    {
+        var sql = "SELECT 1.43;";
+        var tokens = _lexer.Tokenize(sql);
+
+        var statements = _parser.Parse(sql, tokens);
+        Assert.Single(statements);
+
+        var select = Assert.IsType<Statement.Select>(statements[0]);
+        Assert.Single(select.SelectItems);
+
+        var expressionItem = Assert.IsType<Component.ExpressionItem>(select.SelectItems[0]);
+
+        var numberLiteral = Assert.IsType<Expression.NumberLiteral>(expressionItem.Expression);
+        Assert.Equal(1.43, numberLiteral.Value);
     }
 }

@@ -1,6 +1,6 @@
 ﻿using DimaDB.Core.Parsing;
 
-namespace DimaDB.Core.Interfaces;
+namespace DimaDB.Core.Printing;
 
 public interface IAstPrinter
 {

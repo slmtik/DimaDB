@@ -1,8 +1,8 @@
-﻿using DimaDB.Core;
+﻿using DimaDB.Core.Cli;
 using DimaDB.Core.ErrorHandling;
-using DimaDB.Core.Interfaces;
 using DimaDB.Core.Lexing;
 using DimaDB.Core.Parsing;
+using DimaDB.Core.Printing;
 using DimaDB.Repl;
 using Microsoft.Extensions.DependencyInjection;
 using System.CommandLine;
@@ -11,11 +11,11 @@ using System.CommandLine.Parsing;
 var serviceCollection = new ServiceCollection();
 
 serviceCollection.AddSingleton<ReplEngine>();
-serviceCollection.AddSingleton<ErrorReporter>();
-serviceCollection.AddSingleton<CommandProcessor>();
-serviceCollection.AddSingleton<ILexer, Lexer>();
-serviceCollection.AddSingleton<IParser, Parser>();
-serviceCollection.AddSingleton<IAstPrinter, AstPrinter>();
+serviceCollection.AddTransient<ErrorReporter>();
+serviceCollection.AddTransient<CommandProcessor>();
+serviceCollection.AddTransient<ILexer, Lexer>();
+serviceCollection.AddTransient<IParser, Parser>();
+serviceCollection.AddTransient<IAstPrinter, AstPrinter>();
 
 var serviceProvider = serviceCollection.BuildServiceProvider();
 

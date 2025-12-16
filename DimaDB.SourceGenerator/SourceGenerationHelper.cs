@@ -13,11 +13,19 @@ namespace DimaDB.SourceGenerator
     {
         public string ClassName { get; }
         public string Arguments { get; }
+        public string? BaseClassName { get; }
 
         public AstNodeAttribute(string className, string arguments)
         {
             ClassName = className;
             Arguments = arguments;
+        }
+
+        public AstNodeAttribute(string className, string arguments, string baseClassName)
+        {
+            ClassName = className;
+            Arguments = arguments;
+            BaseClassName = baseClassName;
         }
     }
 }";
@@ -51,6 +59,10 @@ namespace DimaDB.SourceGenerator
 
         GenerateIVisitorInterfaces(sb, node, baseClassName);
 
+        sb.AppendLine("        abstract public T Accept<T>(IVisitor<T> visitor);");
+        sb.AppendLine("        abstract public void Accept(IVisitor visitor);");
+        sb.AppendLine("");
+
         GenerateAstNodes(sb, node, baseClassName);
 
         sb.AppendLine("    }");
@@ -65,51 +77,46 @@ namespace DimaDB.SourceGenerator
 
     private static void GenerateIVisitorInterfaces(StringBuilder sb, AstNodesToGenerate node, string baseClassName)
     {
-        var variants = new (VisitorInterfaceType, string, string)[]
+        var variants = new (string, string)[]
         {
-            (VisitorInterfaceType.Generic, "IVisitor<T>", "T"),
-            (VisitorInterfaceType.NonGeneric, "IVisitor", "void")
+            ("IVisitor<T>", "T"),
+            ("IVisitor", "void")
         };
 
-        foreach(var (flag, interfaceName, returnType) in variants)
+        foreach(var (interfaceName, returnType) in variants)
         {
-            if (node.VisitorInterfaceTypes.HasFlag(flag))
+            sb.AppendLine($"        public interface {interfaceName}");
+            sb.AppendLine("        {");
+
+            foreach (var astNode in node.AstNodes)
             {
-                sb.AppendLine($"        public partial interface {interfaceName}");
-                sb.AppendLine("        {");
-
-                foreach (var astNode in node.AstNodes)
-                {
-                    var acceptMethodSuffix = astNode.Name.EndsWith(baseClassName) ? "" : baseClassName;
-                    sb.AppendLine($"            {returnType} Visit{astNode.Name}{acceptMethodSuffix}({astNode.Name} {baseClassName.ToLower()});");
-                }
-
-                sb.AppendLine("        }");
-                sb.AppendLine("");
+                var acceptMethodSuffix = astNode.Name.EndsWith(baseClassName) ? "" : baseClassName;
+                sb.AppendLine($"            {returnType} Visit{astNode.Name}{acceptMethodSuffix}({astNode.Name} {baseClassName.ToLower()});");
             }
+
+            sb.AppendLine("        }");
+            sb.AppendLine("");
         }
     }
 
     private static void GenerateAstNodes(StringBuilder sb, AstNodesToGenerate node, string baseClassName)
     {
-        var variants = new (VisitorInterfaceType, string, string, string)[]
+        var variants = new (string, string, string)[]
         {
-            (VisitorInterfaceType.Generic, "IVisitor<T>", "T", "Accept<T>"),
-            (VisitorInterfaceType.NonGeneric, "IVisitor", "void", "Accept")
+            ("IVisitor<T>", "T", "Accept<T>"),
+            ("IVisitor", "void", "Accept")
         };
 
         foreach (var astNode in node.AstNodes)
         {
-            sb.AppendLine($"        public record {astNode.Name}({astNode.Arguments}) : {baseClassName} ");
+            var astNodeBaseClassName = (string.IsNullOrEmpty(astNode.BaseClassName) ? baseClassName : astNode.BaseClassName);
+            sb.AppendLine($"        public record {astNode.Name}({astNode.Arguments}) : {astNodeBaseClassName} ");
             sb.AppendLine("        {");
 
-            foreach (var (flag, interfaceName, returnType, acceptMethodName) in variants)
+            foreach (var (interfaceName, returnType, acceptMethodName) in variants)
             {
-                if (node.VisitorInterfaceTypes.HasFlag(flag))
-                {
-                    var acceptMethodSuffix = astNode.Name.EndsWith(baseClassName) ? "" : baseClassName;
-                    sb.AppendLine($"            override public {returnType} {acceptMethodName}({interfaceName} visitor) => visitor.Visit{astNode.Name}{acceptMethodSuffix}(this);");
-                }
+                var acceptMethodSuffix = astNode.Name.EndsWith(baseClassName) ? "" : baseClassName;
+                sb.AppendLine($"            override public {returnType} {acceptMethodName}({interfaceName} visitor) => visitor.Visit{astNode.Name}{acceptMethodSuffix}(this);");
             }
 
             sb.AppendLine("        }");

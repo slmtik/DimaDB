@@ -8,11 +8,6 @@ public class ErrorReporter
 
     public int ErrorCode => _errorCode;
 
-    public void Reset()
-    {
-        _errorCode = 0;
-    }
-
     public void Report(LexerException exception)
     {
         Console.Error.WriteLine($"[Line {exception.Line}, Position {exception.Position}] Lexer Error: {exception.Message}");
@@ -24,11 +19,12 @@ public class ErrorReporter
     {
         if (exception.Token.TokenType == TokenType.EoF)
         {
-            Console.Error.WriteLine($"[Line {exception.Token.Line}, Position {exception.Token.Position}] Parser Error at end: {exception.Message}");
+            Console.Error.WriteLine($"[Line {exception.Token.Line}, Position {exception.Token.Start}] Parser Error at end: {exception.Message}");
         }
         else
         {
-            Console.Error.WriteLine($"[Line {exception.Token.Line}, Position {exception.Token.Position}] Parser Error at '{exception.Token.Lexeme}': {exception.Message}");
+            var lexeme = exception.Input.AsSpan(exception.Token.Start, exception.Token.Length);
+            Console.Error.WriteLine($"[Line {exception.Token.Line}, Position {exception.Token.Start}] Parser Error at '{lexeme}': {exception.Message}");
         }
 
         _errorCode = 3;

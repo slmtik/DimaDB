@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics;
 using System.Text;
 
 namespace DimaDB.SourceGenerator;
@@ -41,24 +42,6 @@ public class AstNodeSourceGenerator : IIncrementalGenerator
 
         var className = namedTypeSymbol.ToString();
 
-        var visitorInterfaceTypes = VisitorInterfaceType.None;
-        foreach (var visitor in namedTypeSymbol.GetTypeMembers("IVisitor"))
-        {
-            if (visitor.Arity > 0 || visitor.TypeParameters.Length > 0)
-            {
-                visitorInterfaceTypes |= VisitorInterfaceType.Generic;
-            }
-            else
-            {
-                visitorInterfaceTypes |= VisitorInterfaceType.NonGeneric;
-            }
-        }
-
-        if (visitorInterfaceTypes == VisitorInterfaceType.None)
-        {
-            return null;
-        }
-
         var astNodes = new List<AstNodeData>();
 
         foreach (var attr in attrData)
@@ -69,20 +52,23 @@ public class AstNodeSourceGenerator : IIncrementalGenerator
                 astNodes.Add(astNode.Value);
             }
         }
-        return new AstNodesToGenerate(className, visitorInterfaceTypes, [..astNodes]);
+        return new AstNodesToGenerate(className, [..astNodes]);
     }
 
     private static AstNodeData? CreateAstNodeDataFromAttribute(AttributeData attrData)
     {
-        // Node name
         var astNodeName = attrData.ConstructorArguments[0].Value?.ToString();
         if (string.IsNullOrWhiteSpace(astNodeName))
         {
             return null;
         }
 
-        // Node arguments
         var arguments = attrData.ConstructorArguments[1].Value?.ToString();
+
+        if (attrData.ConstructorArguments.Length == 3 && attrData.ConstructorArguments[2].Value is string baseClassName)
+        {
+            return new AstNodeData(astNodeName, arguments, baseClassName);
+        }
 
         return new AstNodeData(astNodeName, arguments);
     }

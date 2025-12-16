@@ -1,3 +1,3 @@
 ﻿namespace DimaDB.Core.Lexing;
 
-public record Token(TokenType TokenType, string Lexeme, object? Literal, int Line, int Position, bool Quoted);
+public record Token(TokenType TokenType, int Start, int Length, int Line);

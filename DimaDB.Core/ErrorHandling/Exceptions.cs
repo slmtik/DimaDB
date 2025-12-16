@@ -8,7 +8,8 @@ public class LexerException(int line, int position, string message) : Exception(
     public int Position { get; } = position;
 }
 
-public class ParserException(Token token, string message) : Exception(message)
+public class ParserException(string input, Token token, string message) : Exception(message)
 {
+    public string Input { get; } = input;
     public Token Token { get; } = token;
 }

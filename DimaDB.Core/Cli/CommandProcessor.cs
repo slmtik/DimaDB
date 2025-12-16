@@ -1,15 +1,14 @@
 ﻿using DimaDB.Core.ErrorHandling;
-using DimaDB.Core.Interfaces;
 using DimaDB.Core.Lexing;
+using DimaDB.Core.Parsing;
+using DimaDB.Core.Printing;
 
-namespace DimaDB.Core;
+namespace DimaDB.Core.Cli;
 
 public class CommandProcessor(ErrorReporter errorReporter, ILexer lexer, IParser parser, IAstPrinter astPrinter)
 {
     public int Process(string command, bool isDebug)
     {
-        errorReporter.Reset();
-
         var tokens = lexer.Tokenize(command);
         if (tokens.Count == 0 || tokens[0].TokenType == TokenType.EoF)
         {
@@ -21,7 +20,7 @@ public class CommandProcessor(ErrorReporter errorReporter, ILexer lexer, IParser
             return 2;
         }
 
-        var statements = parser.Parse(tokens);
+        var statements = parser.Parse(command, tokens);
         if (errorReporter.ErrorCode > 0)
         {
             return 3;

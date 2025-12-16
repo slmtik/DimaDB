@@ -135,9 +135,9 @@ select_statement = "SELECT" , select_clause , [ "FROM" , from_clause ] , [ "WHER
 
 select_clause = select_item , { "," , select_item } ;
 
-select_item = select_item_expression , [ alias ] ;
+select_item = "*" | identifier , "." , "*" | select_item_expression , [ alias ] ;
 
-select_item_expression = "*" | identifier , "." , "*" | identifier , "." , identifier | identifier | expression ;
+select_item_expression = identifier , "." , identifier | identifier | expression ;
 
 alias = [ "AS" ] , identifier ;
 

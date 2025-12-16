@@ -5,12 +5,18 @@ namespace DimaDb.Core.Tests.Lexing;
 
 public class LexerTests
 {
+    private readonly ILexer _lexer;
+
+    public LexerTests()
+    {
+        _lexer = new Lexer();
+    }
+
     [Fact]
     public void Tokenize_SelectFrom_ReturnsExpectedTokens()
     {
-        var lexer = new Lexer(null);
         var source = "SELECT name, age FROM users;";
-        var tokens = lexer.Tokenize(source);
+        var tokens = _lexer.Tokenize(source);
 
         var expectedTypes = new[]
         {
@@ -31,32 +37,30 @@ public class LexerTests
             Assert.Equal(expectedTypes[i], tokens[i].TokenType);
         }
 
-        Assert.Equal("name", tokens[1].Lexeme);
-        Assert.Equal("age", tokens[3].Lexeme);
-        Assert.Equal("users", tokens[5].Lexeme);
+        Assert.Equal("name", source.AsSpan(tokens[1].Start, tokens[1].Length).ToString());
+        Assert.Equal("age", source.AsSpan(tokens[3].Start, tokens[3].Length).ToString());
+        Assert.Equal("users", source.AsSpan(tokens[5].Start, tokens[5].Length).ToString());
     }
 
     [Fact]
     public void Tokenize_StringAndNumberLiteralsAndQuotedIdentifier()
     {
-        var lexer = new Lexer(null);
         var source = "INSERT INTO \"MyTable\" VALUES (123, 'hello');";
-        var tokens = lexer.Tokenize(source);
+        var tokens = _lexer.Tokenize(source);
 
-        Assert.Contains(tokens, t => t.TokenType == TokenType.NumberLiteral && (double)t.Literal! == 123);
-        Assert.Contains(tokens, t => t.TokenType == TokenType.StringLiteral && (string)t.Literal! == "hello");
+        Assert.Contains(tokens, t => t.TokenType == TokenType.NumberLiteral && double.Parse(source.AsSpan(t.Start, t.Length)) == 123);
+        Assert.Contains(tokens, t => t.TokenType == TokenType.StringLiteral && source.AsSpan(t.Start, t.Length).ToString() == "'hello'");
         
-        var quoted = tokens.FirstOrDefault(t => t.TokenType == TokenType.Identifier && t.Quoted);
+        var quoted = tokens.FirstOrDefault(t => t.TokenType == TokenType.Identifier);
         Assert.NotNull(quoted);
-        Assert.Equal("MyTable", quoted!.Lexeme);
+        Assert.Equal("\"MyTable\"", source.AsSpan(quoted!.Start, quoted!.Length).ToString());
     }
 
     [Fact]
     public void Tokenize_CreateTable_ReturnsExpectedTokens()
     {
-        var lexer = new Lexer(null);
         var source = "CREATE TABLE users (id INT, name TEXT);";
-        var tokens = lexer.Tokenize(source).ToArray();
+        var tokens = _lexer.Tokenize(source).ToArray();
 
         var expectedTypes = new[]
         {
@@ -81,9 +85,9 @@ public class LexerTests
             Assert.Equal(expectedTypes[i], tokens[i].TokenType);
         }
 
-        Assert.Equal("users", tokens[2].Lexeme);
-        Assert.Equal("id", tokens[4].Lexeme);
-        Assert.Equal("name", tokens[7].Lexeme);
+        Assert.Equal("users", source.AsSpan(tokens[2].Start, tokens[2].Length).ToString());
+        Assert.Equal("id", source.AsSpan(tokens[4].Start, tokens[4].Length).ToString());
+        Assert.Equal("name", source.AsSpan(tokens[7].Start, tokens[7].Length).ToString());
     }
 
     [Fact]
@@ -113,5 +117,14 @@ public class LexerTests
         {
             Console.SetError(errOut);
         }
+    }
+
+    [Fact]
+    public void Tokenize_StringLiteralWithEscapedQuote()
+    {
+        var source = "SELECT 'It''s raining';";
+        var tokens = _lexer.Tokenize(source);
+
+        Assert.Contains(tokens, t => t.TokenType == TokenType.StringLiteral && source.AsSpan(t.Start, t.Length).ToString() == "'It''s raining'");
     }
 }

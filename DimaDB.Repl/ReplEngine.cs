@@ -1,8 +1,9 @@
-﻿using DimaDB.Core;
+﻿using DimaDB.Core.Cli;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DimaDB.Repl;
 
-public class ReplEngine(CommandProcessor commandProcessor)
+public class ReplEngine(IServiceProvider serviceProvider)
 {
     public Task Start(bool isDebug, CancellationToken cancellationToken = default)
     {
@@ -18,6 +19,7 @@ public class ReplEngine(CommandProcessor commandProcessor)
                 break;
             }
 
+            var commandProcessor = serviceProvider.GetRequiredService<CommandProcessor>();
             commandProcessor.Process(input, isDebug);
         }
 

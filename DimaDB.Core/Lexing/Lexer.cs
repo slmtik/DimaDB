@@ -1,11 +1,9 @@
 ﻿using DimaDB.Core.ErrorHandling;
-using DimaDB.Core.Interfaces;
 
 namespace DimaDB.Core.Lexing;
 
 public class Lexer(ErrorReporter? errorReporter) : ILexer
 {
-    private readonly List<Token> _tokens = [];
     private readonly Dictionary<string, TokenType> _keywords = new(StringComparer.OrdinalIgnoreCase)
     {
         {"SELECT", TokenType.Select},
@@ -29,7 +27,8 @@ public class Lexer(ErrorReporter? errorReporter) : ILexer
         {"TEXT", TokenType.Text },
     };
 
-    private string _source = "";
+    private List<Token> _tokens = null!;
+    private string _source = null!;
     private int _startPosition = 0;
     private int _currentPosition = 0;
     private int _line = 1;
@@ -38,10 +37,12 @@ public class Lexer(ErrorReporter? errorReporter) : ILexer
     private char Peek => IsAtEnd ? '\0' : _source[_currentPosition];
     private char PeekNext => _currentPosition + 1 >= _source.Length ? '\0' : _source[_currentPosition + 1];
 
+    public Lexer() : this(null) { }
+
     public IList<Token> Tokenize(string source)
     {
         _source = source;
-        _tokens.Clear();
+        _tokens = [];
         _startPosition = 0;
         _currentPosition = 0;
         _line = 1;
@@ -52,7 +53,7 @@ public class Lexer(ErrorReporter? errorReporter) : ILexer
             NextToken();
         }
 
-        _tokens.Add(new Token(TokenType.EoF, "", null, _line, _currentPosition, false));
+        _tokens.Add(new Token(TokenType.EoF, _currentPosition, _source.Length, _line));
 
         return _tokens;
     }
@@ -143,29 +144,7 @@ public class Lexer(ErrorReporter? errorReporter) : ILexer
 
     private void AddToken(TokenType type)
     {
-        AddToken(type, null);
-    }
-
-    private void AddToken(TokenType type, bool quoted)
-    {
-        AddToken(type, null, quoted);
-    }
-
-    private void AddToken(TokenType type, object? literal)
-    {
-        AddToken(type, literal, false);
-    }
-
-    private void AddToken(TokenType type, object? literal, bool quoted)
-    {
-        if (quoted)
-        {
-            _tokens.Add(new Token(type, _source[(_startPosition + 1)..(_currentPosition - 1)], literal, _line, _startPosition, quoted));
-        }
-        else
-        {
-            _tokens.Add(new Token(type, _source[_startPosition.._currentPosition], literal, _line, _startPosition, quoted));
-        }
+        _tokens.Add(new Token(type, _startPosition, _currentPosition - _startPosition, _line));
     }
 
     private bool Match(char expected)
@@ -187,11 +166,21 @@ public class Lexer(ErrorReporter? errorReporter) : ILexer
 
     private void AddStringToken()
     {
-        while (!IsAtEnd && Peek != '\'')
+        while (!IsAtEnd)
         {
             if (Peek == '\n')
             {
                 _line++;
+            }
+
+            if (Peek == '\'')
+            {
+                if (PeekNext != '\'')
+                {
+                    break;
+                }
+
+                Advance(); // Consume the escaped '
             }
 
             Advance();
@@ -205,7 +194,7 @@ public class Lexer(ErrorReporter? errorReporter) : ILexer
 
         Advance(); // Consume the closing '
 
-        AddToken(TokenType.StringLiteral, _source[(_startPosition + 1)..(_currentPosition - 1)]);
+        AddToken(TokenType.StringLiteral);
     }
     
     private static bool IsDigit(char c) => char.IsAsciiDigit(c);
@@ -227,7 +216,7 @@ public class Lexer(ErrorReporter? errorReporter) : ILexer
             }
         }
 
-        AddToken(TokenType.NumberLiteral, double.Parse(_source[_startPosition.._currentPosition]));
+        AddToken(TokenType.NumberLiteral);
     }
 
     private static bool IsAlpha(char c) => char.IsLetter(c) || c == '_';
@@ -258,7 +247,7 @@ public class Lexer(ErrorReporter? errorReporter) : ILexer
 
         Advance(); // Consume the closing "
 
-        AddToken(TokenType.Identifier, true);
+        AddToken(TokenType.Identifier);
 
         if (IsAtEnd)
         {

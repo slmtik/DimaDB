@@ -1,59 +1,28 @@
-﻿using DimaDB.Core.ErrorHandling;
-using DimaDB.Core.Interfaces;
+﻿using DimaDB.Core.AST;
+using DimaDB.Core.ErrorHandling;
 using DimaDB.Core.Lexing;
 using System.Collections.Immutable;
+using System.Globalization;
 
 namespace DimaDB.Core.Parsing;
 
 public class Parser(ErrorReporter? errorReporter) : IParser
 {
-    private readonly List<Token> _tokens = [];
+    private IList<Token> _tokens = null!;
+    private string _source = null!;
     private int _current = 0;
 
     private bool IsAtEnd => Peek.TokenType == TokenType.EoF;
     private Token Peek => _tokens[_current];
     private Token Previous => _tokens[_current - 1];
 
-    private bool Match(params TokenType[] types)
+    public Parser() : this(null) { }
+
+    public IList<Statement> Parse(string source, IList<Token> tokens)
     {
-        foreach (TokenType type in types)
-        {
-            if (Check(type))
-            {
-                Advance();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private bool Check(TokenType type) => !IsAtEnd && Peek.TokenType == type;
-
-    private Token Advance()
-    {
-        if (!IsAtEnd)
-        {
-            _current++;
-        }
-
-        return Previous;
-    }
-
-    private Token Consume(TokenType type, string message)
-    {
-        if (Check(type))
-        {
-            return Advance();
-        }
-
-        throw new ParserException(Peek, message);
-    }
-
-    public IList<Statement> Parse(IList<Token> tokens)
-    {
-        _tokens.Clear();
+        _source = source;
         _current = 0;
-        _tokens.AddRange(tokens);
+        _tokens = tokens;
 
         var statements = new List<Statement>();
 
@@ -102,6 +71,81 @@ public class Parser(ErrorReporter? errorReporter) : IParser
         }
     }
 
+    private bool Match(params TokenType[] types)
+    {
+        foreach (TokenType type in types)
+        {
+            if (Check(type))
+            {
+                Advance();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool Check(TokenType type) => !IsAtEnd && Peek.TokenType == type;
+
+    private Token Advance()
+    {
+        if (!IsAtEnd)
+        {
+            _current++;
+        }
+
+        return Previous;
+    }
+
+    private Token Consume(TokenType type, string message)
+    {
+        if (Check(type))
+        {
+            return Advance();
+        }
+
+        throw new ParserException(_source, Peek, message);
+    }
+
+    private BinaryOperator MapBinaryOperator(Token token)
+    {
+        return token.TokenType switch
+        {
+            TokenType.Plus => BinaryOperator.Add,
+            TokenType.Minus => BinaryOperator.Subtract,
+            TokenType.Star => BinaryOperator.Multiply,
+            TokenType.Slash => BinaryOperator.Divide,
+            TokenType.Equal => BinaryOperator.Equal,
+            TokenType.NotEqual => BinaryOperator.NotEqual,
+            TokenType.Less => BinaryOperator.Less,
+            TokenType.LessEqual => BinaryOperator.LessEqual,
+            TokenType.Greater => BinaryOperator.Greater,
+            TokenType.GreaterEqual => BinaryOperator.GreaterEqual,
+            TokenType.And => BinaryOperator.And,
+            TokenType.Or => BinaryOperator.Or,
+            _ => throw new ParserException(_source, Previous, "Invalid binary operator")
+        };
+    }
+
+    private UnaryOperator MapUnaryOperator(Token token)
+    {
+        return token.TokenType switch
+        {
+            TokenType.Minus => UnaryOperator.Negate,
+            TokenType.Not => UnaryOperator.Not,
+            _ => throw new ParserException(_source, Previous, "Invalid unary operator")
+        };
+    }
+
+    private Identifier ParseIdentifier(Token identifierToken)
+    {
+        var identifierSpan = _source.AsSpan(identifierToken.Start, identifierToken.Length);
+        if (identifierSpan[0] == '"')
+        {
+            return new(identifierSpan[1..^1].ToString(), true);
+        }
+        return new(identifierSpan.ToString(), false);
+    }
+
     private Statement StatementRule()
     { 
 
@@ -120,7 +164,7 @@ public class Parser(ErrorReporter? errorReporter) : IParser
             return InsertIntoStatementRule();
         }
 
-        throw new ParserException(Peek, "Expect statement");
+        throw new ParserException(_source, Peek, "Expect statement");
     }
 
     private Statement.CreateTable CreateTableStatementRule()
@@ -129,7 +173,7 @@ public class Parser(ErrorReporter? errorReporter) : IParser
 
         Consume(TokenType.LeftParenthesis, "Expect '(' before column definitions");
 
-        var columnDefinitions = ImmutableArray.CreateBuilder<Expression.ColumnDefinition>();
+        var columnDefinitions = ImmutableArray.CreateBuilder<Component.ColumnDefinition>();
         do
         {
             columnDefinitions.Add(ColumnDefinitionRule());
@@ -145,27 +189,27 @@ public class Parser(ErrorReporter? errorReporter) : IParser
     private Identifier TableIdentirfierRule()
     {
         var tableToken = Consume(TokenType.Identifier, "Expect table name");
-        return new Identifier(tableToken.Lexeme, tableToken.Quoted);
+        return ParseIdentifier(tableToken);
     }
 
-    private Expression.ColumnDefinition ColumnDefinitionRule()
+    private Component.ColumnDefinition ColumnDefinitionRule()
     {
         var identifierToken = Consume(TokenType.Identifier, "Expect column identifier in the column definition");
-        var columnIdentifier = new Identifier(identifierToken.Lexeme, identifierToken.Quoted);
+        var columnIdentifier = ParseIdentifier(identifierToken);
 
         var type = TypeNameRule();
 
-        return new Expression.ColumnDefinition(columnIdentifier, type);
+        return new Component.ColumnDefinition(columnIdentifier, type);
     }
 
     private TypeName TypeNameRule()
     {
         if (Match(TokenType.Int, TokenType.BigInt, TokenType.Text))
         {
-            return new TypeName(Previous.Lexeme.ToUpper());
+            return new TypeName(_source.AsSpan(Previous.Start, Previous.Length).ToString().ToUpper());
         }
 
-        throw new ParserException(Peek, "Unsupported type");
+        throw new ParserException(_source, Peek, "Unsupported type");
     }
 
     private Statement.InsertInto InsertIntoStatementRule()
@@ -203,29 +247,29 @@ public class Parser(ErrorReporter? errorReporter) : IParser
 
         if (Match(TokenType.NumberLiteral))
         {
-            return new Expression.NumberLiteral((double)Previous.Literal!);
+            return ParseNumberLiteral();
         }
 
         if (Match(TokenType.StringLiteral))
         {
-            return new Expression.StringLiteral((string)Previous.Literal!);
+            return ParseStringLiteral();
         }
 
-        throw new ParserException(IsAtEnd ? Previous : Peek, "Expect value expression");
+        throw new ParserException(_source, IsAtEnd ? Previous : Peek, "Expect value expression");
     }
 
     private Statement.Select SelectStatementRule()
     {
         var selectClause = SelectClauseRule();
 
-        Expression.FromClause? fromClause = null;
+        Clause.FromClause? fromClause = null;
 
         if (!Check(TokenType.Semicolon) && Consume(TokenType.From, "Expect 'FROM' after SELECT clause") is not null)
         {
             fromClause = FromClauseRule();
         }
 
-        Expression? whereClause = null;
+        Clause.WhereClause? whereClause = null;
 
         if (Match(TokenType.Where))
         {
@@ -236,11 +280,11 @@ public class Parser(ErrorReporter? errorReporter) : IParser
         if (Match(TokenType.Limit))
         {
             var limitToken = Consume(TokenType.NumberLiteral, "Expect number after LIMIT");
-            var limitValue = (double)limitToken.Literal!;
+            var limitValue = double.Parse(_source.AsSpan(limitToken.Start, limitToken.Length));
 
             if (limitValue < 0 || limitValue != Math.Floor(limitValue))
             {
-                throw new ParserException(limitToken, "LIMIT must be a non-negative integer");
+                throw new ParserException(_source, limitToken, "LIMIT must be a non-negative integer");
             }
 
             limit = (long)limitValue;
@@ -251,9 +295,9 @@ public class Parser(ErrorReporter? errorReporter) : IParser
         return new Statement.Select(selectClause, fromClause, whereClause, limit);
     }
 
-    private ImmutableArray<Expression.SelectItem> SelectClauseRule()
+    private ImmutableArray<Component.SelectItem> SelectClauseRule()
     {
-        var selectClause = ImmutableArray.CreateBuilder<Expression.SelectItem>();
+        var selectClause = ImmutableArray.CreateBuilder<Component.SelectItem>();
         do
         {
             selectClause.Add(SelectItemRule());
@@ -262,42 +306,37 @@ public class Parser(ErrorReporter? errorReporter) : IParser
         return selectClause.ToImmutable();
     }
 
-    private Expression.SelectItem SelectItemRule()
-    {
-        var expression = SelectItemExpressionRule();
-        var alias = AliasRule();
-        return new Expression.SelectItem(expression, alias);
-    }
-
-    private Expression SelectItemExpressionRule()
+    private Component.SelectItem SelectItemRule()
     {
         if (Match(TokenType.Star))
         {
-            return new Expression.Star();
+            return new Component.Star();
         }
 
         if (Check(TokenType.Identifier))
         {
             var firstToken = Advance();
-            var firstIdentifier = new Identifier(firstToken.Lexeme, firstToken.Quoted);
+            var firstIdentifier = ParseIdentifier(firstToken);
 
             if (Match(TokenType.Dot))
             {
                 if (Match(TokenType.Star))
                 {
-                    return new Expression.QualifiedStar(firstIdentifier);
+                    return new Component.QualifiedStar(firstIdentifier);
                 }
 
                 var secondToken = Consume(TokenType.Identifier, "Expect identifier after .");
-                var secondIdentifier = new Identifier(secondToken.Lexeme, secondToken.Quoted);
+                var secondIdentifier = ParseIdentifier(secondToken);
+                var qualifiedColumnReference = new Expression.ColumnReference(firstIdentifier, secondIdentifier);
 
-                return new Expression.ColumnReference(firstIdentifier, secondIdentifier);
+                return new Component.ExpressionItem(qualifiedColumnReference, AliasRule());
             }
-                
-            return new Expression.ColumnReference(null, firstIdentifier);
+
+            var columnReference = new Expression.ColumnReference(null, firstIdentifier);
+            return new Component.ExpressionItem(columnReference, AliasRule());
         }
-            
-        return ExpressionRule();
+
+        return new Component.ExpressionItem(ExpressionRule(), AliasRule());
     }
 
     private Identifier? AliasRule()
@@ -314,30 +353,30 @@ public class Parser(ErrorReporter? errorReporter) : IParser
                 aliasToken = Advance();
             }
 
-            return new Identifier(aliasToken.Lexeme, aliasToken.Quoted);
+            return ParseIdentifier(aliasToken);
         }
 
         return null;
     }
 
-    private Expression.FromClause FromClauseRule()
+    private Clause.FromClause FromClauseRule()
     {
         var tableRef = TableReferenceRule();
-        return new Expression.FromClause(tableRef);
+        return new Clause.FromClause(tableRef);
     }
 
-    private Expression.TableReference TableReferenceRule()
+    private Component.TableReference TableReferenceRule()
     {
         var tableToken = Consume(TokenType.Identifier, "Expect table name");
-        var tableIdentifier = new Identifier(tableToken.Lexeme, tableToken.Quoted);
+        var tableIdentifier = ParseIdentifier(tableToken);
         var alias = AliasRule();
 
-        return new Expression.TableReference(tableIdentifier, alias);
+        return new Component.TableReference(tableIdentifier, alias);
     }
 
-    private Expression WhereClauseRule()
+    private Clause.WhereClause WhereClauseRule()
     {
-        return ExpressionRule();
+        return new Clause.WhereClause(ExpressionRule());
     }
 
     private Expression ExpressionRule() => OrRule();
@@ -348,9 +387,8 @@ public class Parser(ErrorReporter? errorReporter) : IParser
 
         while (Match(TokenType.Or))
         {
-            Token operatorToken = Previous;
             Expression right = AndRule();
-            expression = new Expression.BinaryOperation(expression, operatorToken, right);
+            expression = new Expression.BinaryOperation(expression, BinaryOperator.Or, right);
         }
 
         return expression;
@@ -362,9 +400,8 @@ public class Parser(ErrorReporter? errorReporter) : IParser
 
         while (Match(TokenType.And))
         {
-            Token operatorToken = Previous;
             Expression right = EqualityRule();
-            expression = new Expression.BinaryOperation(expression, operatorToken, right);
+            expression = new Expression.BinaryOperation(expression, BinaryOperator.And, right);
         }
 
         return expression;
@@ -378,7 +415,7 @@ public class Parser(ErrorReporter? errorReporter) : IParser
         {
             Token operatorToken = Previous;
             Expression right = ComparisonRule();
-            expression = new Expression.BinaryOperation(expression, operatorToken, right);
+            expression = new Expression.BinaryOperation(expression, MapBinaryOperator(operatorToken), right);
         }
 
         return expression;
@@ -392,7 +429,7 @@ public class Parser(ErrorReporter? errorReporter) : IParser
         {
             Token operatorToken = Previous;
             Expression right = TermRule();
-            expression = new Expression.BinaryOperation(expression, operatorToken, right);
+            expression = new Expression.BinaryOperation(expression, MapBinaryOperator(operatorToken), right);
         }
 
         return expression;
@@ -406,7 +443,7 @@ public class Parser(ErrorReporter? errorReporter) : IParser
         {
             Token operatorToken = Previous;
             Expression right = FactorRule();
-            expression = new Expression.BinaryOperation(expression, operatorToken, right);
+            expression = new Expression.BinaryOperation(expression, MapBinaryOperator(operatorToken), right);
         }
 
         return expression;
@@ -420,7 +457,7 @@ public class Parser(ErrorReporter? errorReporter) : IParser
         {
             Token operatorToken = Previous;
             Expression right = UnaryRule();
-            expression = new Expression.BinaryOperation(expression, operatorToken, right);
+            expression = new Expression.BinaryOperation(expression, MapBinaryOperator(operatorToken), right);
         }
 
         return expression;
@@ -432,7 +469,7 @@ public class Parser(ErrorReporter? errorReporter) : IParser
         {
             Token operatorToken = Previous;
             Expression right = PrimaryRule();
-            return new Expression.UnaryOperation(operatorToken, right);
+            return new Expression.UnaryOperation(MapUnaryOperator(operatorToken), right);
         }
 
         return PrimaryRule();
@@ -452,12 +489,12 @@ public class Parser(ErrorReporter? errorReporter) : IParser
 
         if (Match(TokenType.NumberLiteral))
         {
-            return new Expression.NumberLiteral((double)Previous.Literal!);
+            return ParseNumberLiteral();
         }
 
         if (Match(TokenType.StringLiteral))
         {
-            return new Expression.StringLiteral((string)Previous.Literal!);
+            return ParseStringLiteral();
         }
 
         if (Match(TokenType.LeftParenthesis))
@@ -469,12 +506,12 @@ public class Parser(ErrorReporter? errorReporter) : IParser
 
         if (Match(TokenType.Identifier))
         {
-            var identifier = new Identifier(Previous.Lexeme, Previous.Quoted);
+            var identifier = ParseIdentifier(Previous);
 
             if (Match(TokenType.Dot))
             {
                 var columnToken = Consume(TokenType.Identifier, "Expect column name after '.'");
-                var columnIdentifier = new Identifier(columnToken.Lexeme, columnToken.Quoted);
+                var columnIdentifier = ParseIdentifier(columnToken);
 
                 return new Expression.ColumnReference(identifier, columnIdentifier);
             }
@@ -482,6 +519,22 @@ public class Parser(ErrorReporter? errorReporter) : IParser
             return new Expression.ColumnReference(null, identifier);
         }
 
-        throw new ParserException(IsAtEnd ? Previous : Peek, "Expect expression");
+        throw new ParserException(_source, IsAtEnd ? Previous : Peek, "Expect expression");
+    }
+
+    private Expression.NumberLiteral ParseNumberLiteral()
+    {
+        var numberSpan = _source.AsSpan(Previous.Start, Previous.Length);
+        if (double.TryParse(numberSpan, NumberStyles.Float,  CultureInfo.InvariantCulture, out double doubleValue))
+        {
+            return new(doubleValue);
+        }
+
+        throw new ParserException(_source, Previous, "Invalid decimal literal");
+    }
+
+    private Expression.StringLiteral ParseStringLiteral()
+    {
+        return new Expression.StringLiteral(_source.AsSpan(Previous.Start + 1, Previous.Length - 2).ToString().Replace("''", "'"));
     }
 }

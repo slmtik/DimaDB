@@ -1,6 +1,4 @@
-﻿using DimaDB.Core.Lexing;
-
-namespace DimaDB.Core.Interfaces;
+﻿namespace DimaDB.Core.Lexing;
 
 public interface ILexer
 {
