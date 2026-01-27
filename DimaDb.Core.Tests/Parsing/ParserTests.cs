@@ -7,7 +7,7 @@ namespace DimaDb.Core.Tests.Parsing;
 public class ParserTests
 {
     private readonly ILexer _lexer;
-    private readonly Parser _parser;
+    private readonly IParser _parser;
 
     public ParserTests()
     {

@@ -11,7 +11,7 @@ using System.CommandLine.Parsing;
 var serviceCollection = new ServiceCollection();
 
 serviceCollection.AddSingleton<ReplEngine>();
-serviceCollection.AddTransient<ErrorReporter>();
+serviceCollection.AddSingleton<ErrorReporter>();
 serviceCollection.AddTransient<CommandProcessor>();
 serviceCollection.AddTransient<ILexer, Lexer>();
 serviceCollection.AddTransient<IParser, Parser>();
