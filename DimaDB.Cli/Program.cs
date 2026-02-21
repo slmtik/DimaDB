@@ -3,6 +3,7 @@ using DimaDB.Core.ErrorHandling;
 using DimaDB.Core.Lexing;
 using DimaDB.Core.Parsing;
 using DimaDB.Core.Printing;
+using DimaDB.Core.Storage;
 using DimaDB.Repl;
 using Microsoft.Extensions.DependencyInjection;
 using System.CommandLine;
@@ -12,6 +13,7 @@ var serviceCollection = new ServiceCollection();
 
 serviceCollection.AddSingleton<ReplEngine>();
 serviceCollection.AddSingleton<ErrorReporter>();
+serviceCollection.AddSingleton<StorageEngine>();
 serviceCollection.AddTransient<CommandProcessor>();
 serviceCollection.AddTransient<ILexer, Lexer>();
 serviceCollection.AddTransient<IParser, Parser>();

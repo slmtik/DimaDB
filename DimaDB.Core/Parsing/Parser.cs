@@ -204,7 +204,7 @@ public class Parser(ErrorReporter? errorReporter) : IParser
 
     private TypeName TypeNameRule()
     {
-        if (Match(TokenType.Int, TokenType.BigInt, TokenType.Text))
+        if (Match(TokenType.Int, TokenType.Bool, TokenType.Text))
         {
             return new TypeName(_source.AsSpan(Previous.Start, Previous.Length).ToString().ToUpper());
         }

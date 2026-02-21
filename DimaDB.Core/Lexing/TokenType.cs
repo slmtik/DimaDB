@@ -22,7 +22,7 @@ public enum TokenType
 
     //Types
     Int, 
-    BigInt,
+    Bool,
     Text,
 
     // Literals

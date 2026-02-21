@@ -10,6 +10,7 @@ public class ReplEngine(IServiceProvider serviceProvider)
         Console.WriteLine("Welcome to DimaDB REPL!");
         Console.WriteLine("Type 'exit' to quit.");
 
+        var commandProcessor = serviceProvider.GetRequiredService<CommandProcessor>();
         while (!cancellationToken.IsCancellationRequested)
         {
             Console.Write("DimaDB> ");
@@ -19,7 +20,6 @@ public class ReplEngine(IServiceProvider serviceProvider)
                 break;
             }
 
-            var commandProcessor = serviceProvider.GetRequiredService<CommandProcessor>();
             commandProcessor.Process(input, isDebug);
         }
 

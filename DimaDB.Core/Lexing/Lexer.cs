@@ -23,7 +23,7 @@ public class Lexer(ErrorReporter? errorReporter) : ILexer
         {"TRUE", TokenType.True},
         {"AS", TokenType.As},
         {"INT", TokenType.Int },
-        {"BIGINT", TokenType.BigInt },
+        {"BOOL", TokenType.Bool },
         {"TEXT", TokenType.Text },
     };
 
