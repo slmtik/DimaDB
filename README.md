@@ -2,20 +2,11 @@
 
 ## Repository Layout
 
-* **DimaDB.Core**
-  Core library containing the lexer, parser, AST definitions, error handling, and runtime primitives.
-
-* **DimaDB.Cli**
-  Command-line client that executes SQL scripts or starts an interactive REPL.
-
-* **DimaDB.Repl**
-  REPL wrapper used by the CLI for interactive sessions.
+* **DimaDB**
+  Main project containing the lexer, parser, AST definitions, AST printer, error handling, runtime primitives, storage engine, CLI, and REPL.
 
 * **DimaDB.SourceGenerator**
   Roslyn source generator that produces AST boilerplate from annotations.
-
-* **DimaDB.Core.Tests**
-  xUnit test project covering lexer and parser behavior.
 
 * **DimaDB.Storage**
   A heap-file storage engine with slotted pages and overflow pages, supporting fixed and variable-length records, persistence, and CRUD operations.

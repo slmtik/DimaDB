@@ -43,8 +43,7 @@ namespace DimaDB.SourceGenerator
         var sb = new StringBuilder();
 
         sb.AppendLine("#nullable enable");
-        sb.AppendLine("using DimaDB.Core;");
-        sb.AppendLine("using DimaDB.Core.Lexing;");
+        sb.AppendLine("using DimaDB.Lexing;");
         sb.AppendLine("using System.Collections.Immutable;");
         sb.AppendLine("");
 
