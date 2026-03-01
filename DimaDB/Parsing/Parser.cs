@@ -1,8 +1,6 @@
 ﻿using DimaDB.AST;
-using DimaDB.AST;
 using DimaDB.ErrorHandling;
 using DimaDB.Lexing;
-using DimaDB.Parsing;
 using System.Collections.Immutable;
 using System.Globalization;
 
@@ -527,9 +525,9 @@ public class Parser(ErrorReporter? errorReporter)
     private Expression.NumberLiteral ParseNumberLiteral()
     {
         var numberSpan = _source.AsSpan(Previous.Start, Previous.Length);
-        if (double.TryParse(numberSpan, NumberStyles.Float,  CultureInfo.InvariantCulture, out double doubleValue))
+        if (int.TryParse(numberSpan, NumberStyles.Float,  CultureInfo.InvariantCulture, out int intValue))
         {
-            return new(doubleValue);
+            return new(intValue);
         }
 
         throw new ParserException(_source, Previous, "Invalid decimal literal");

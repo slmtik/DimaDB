@@ -3,13 +3,13 @@
 ## Repository Layout
 
 * **DimaDB**
-  Main project containing the lexer, parser, AST definitions, AST printer, error handling, runtime primitives, storage engine, CLI, and REPL.
+  Main project containing the lexer, parser, AST definitions, AST printer, error handling, runtime primitives, storage engine, query planner, query executor, CLI, and REPL.
 
 * **DimaDB.SourceGenerator**
   Roslyn source generator that produces AST boilerplate from annotations.
 
-* **DimaDB.Storage**
-  A heap-file storage engine with slotted pages and overflow pages, supporting fixed and variable-length records, persistence, and CRUD operations.
+* **DimaDB.Tests**
+  Comprehensive unit tests for the query planner, query executor, and other components.
 
 ---
 
@@ -97,7 +97,6 @@ The CLI and REPL use the following process exit codes to indicate failure types:
 | **3** | Parser error (syntactically invalid SQL)                                       |
 | **4** | Execution error                                                                |
 
----
 
 ## Testing
 
@@ -496,3 +495,39 @@ Stored inline in heap records (8 bytes total):
 - **Update (in-place):** O(1); O(M) if size changes significantly
 - **Delete:** O(1) mark; O(M) to free overflow pages
 - **Scan:** O(N) + overflow I/O + forwarding hops
+
+---
+
+## Query Execution Pipeline
+
+DimaDB uses a three-stage query execution model:
+
+SQL Input 
+    ↓ 
+Lexer (Tokenization) 
+    ↓ 
+Parser (AST Generation) 
+    ↓ 
+QueryPlanner (Plan Compilation) ← Converts AST to optimized execution plan 
+    ↓ 
+QueryExecutor (Plan Execution) ← Interprets plan and produces results 
+    ↓ 
+StorageEngine (Data Operations) 
+    ↓ 
+Output
+
+**Plan Nodes:**
+
+| Node | Purpose | Example |
+|------|---------|---------|
+| `TableScan` | Scan all records from a table | `TableScan("users", "u")` |
+| `Filter` | Apply WHERE predicate | `Filter(source, id > 5)` |
+| `Project` | Select and compute columns | `Project(source, [id, name])` |
+| `Limit` | Restrict result rows | `Limit(source, 10)` |
+
+**Operator Precedence:**
+
+Limit (outermost) 
+└─ Project 
+└─ Filter
+└─ TableScan 

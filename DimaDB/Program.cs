@@ -4,7 +4,6 @@ using DimaDB.Lexing;
 using DimaDB.Printing;
 using DimaDB.Storage;
 using DimaDB.Parsing;
-using DimaDB.Repl;
 using Microsoft.Extensions.DependencyInjection;
 using System.CommandLine;
 using System.CommandLine.Parsing;

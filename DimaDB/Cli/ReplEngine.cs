@@ -1,7 +1,6 @@
-﻿using DimaDB.Cli;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 
-namespace DimaDB.Repl;
+namespace DimaDB.Cli;
 
 public class ReplEngine(IServiceProvider serviceProvider)
 {

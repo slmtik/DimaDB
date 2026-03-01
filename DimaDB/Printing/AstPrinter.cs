@@ -1,5 +1,4 @@
 ﻿using DimaDB.AST;
-using DimaDB.AST;
 using DimaDB.Parsing;
 using System.Text;
 
@@ -24,7 +23,7 @@ public class AstPrinter : Expression.IVisitor<string>, Statement.IVisitor<string
         var identifierSpan = identifier.Name.AsSpan();
         if (identifierSpan[0] == '"')
         {
-            return identifierSpan.Slice(1, identifierSpan.Length - 2).ToString();
+            return identifierSpan[1..^1].ToString();
         }
         return identifierSpan.ToString().ToUpper();
     }

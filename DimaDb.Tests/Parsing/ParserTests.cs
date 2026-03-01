@@ -2,7 +2,7 @@
 using DimaDB.Lexing;
 using DimaDB.Parsing;
 
-namespace DimaDb.Tests.Parsing;
+namespace DimaDB.Tests.Parsing;
 
 public class ParserTests
 {
@@ -175,7 +175,7 @@ public class ParserTests
     [Fact]
     public void Parse_NumberLiteralWithDecimalValue()
     {
-        var sql = "SELECT 1.43;";
+        var sql = "SELECT 43;";
         var tokens = _lexer.Tokenize(sql);
 
         var statements = _parser.Parse(sql, tokens);
@@ -187,6 +187,6 @@ public class ParserTests
         var expressionItem = Assert.IsType<Component.ExpressionItem>(select.SelectItems[0]);
 
         var numberLiteral = Assert.IsType<Expression.NumberLiteral>(expressionItem.Expression);
-        Assert.Equal(1.43, numberLiteral.Value);
+        Assert.Equal(43, numberLiteral.Value);
     }
 }

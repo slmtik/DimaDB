@@ -1,16 +1,23 @@
-﻿using DimaDB.ErrorHandling;
+﻿using ConsoleTables;
+using DimaDB.ErrorHandling;
+using DimaDB.Execution;
 using DimaDB.Lexing;
 using DimaDB.Parsing;
+using DimaDB.Planning;
 using DimaDB.Printing;
 using DimaDB.Storage;
-using DimaDB.Storage.Types;
 
 namespace DimaDB.Cli;
 
 public class CommandProcessor(ErrorReporter errorReporter, StorageEngine storageEngine, Lexer lexer, Parser parser, AstPrinter astPrinter)
 {
+    private readonly QueryPlanner _planner = new();
+    private readonly QueryExecutor _executor = new(storageEngine);
+
     public int Process(string command, bool isDebug)
     {
+        errorReporter.Reset();
+
         var tokens = lexer.Tokenize(command);
         if (tokens.Count == 0 || tokens[0].TokenType == TokenType.EoF)
         {
@@ -37,9 +44,11 @@ public class CommandProcessor(ErrorReporter errorReporter, StorageEngine storage
         {
             foreach (var statement in statements)
             {
-                ExecuteStatement(statement);
-                storageEngine.Flush();
+                var plan = _planner.Plan(statement);
+                var result = _executor.Execute(plan);
+                PrintResult(result);
             }
+            storageEngine.Flush();
         }
         catch (Exception ex)
         {
@@ -50,76 +59,32 @@ public class CommandProcessor(ErrorReporter errorReporter, StorageEngine storage
         return 0;
     }
 
-    private void ExecuteStatement(Statement statement)
+    private static void PrintResult(ExecutionResult result)
     {
-        if (statement is Statement.CreateTable createTable)
+        switch (result)
         {
-            ExecuteCreateTable(createTable);
-        }
-        else if (statement is Statement.InsertInto insertInto)
-        {
-            ExecuteInsertInto(insertInto);
-        }
-        else if (statement is Statement.Select select)
-        {
-            ExecuteSelect(select);
+            case ExecutionResult.Select select:
+                PrintSelectResult(select);
+                break;
+
+            case ExecutionResult.CreateTable ct:
+                Console.WriteLine(ct.Message);
+                break;
+
+            case ExecutionResult.InsertInto ii:
+                Console.WriteLine(ii.Message);
+                break;
         }
     }
 
-    private void ExecuteCreateTable(Statement.CreateTable createTable)
+    private static void PrintSelectResult(ExecutionResult.Select select)
     {
-        var columns = createTable.ColumnDefinitions.Select(cd =>
-            new ColumnDefinition(
-                cd.Column.Name,
-                ColumnTypeExtensions.FromString(cd.Type.Type),
-                true
-            )
-        ).ToArray();
-
-        storageEngine.CreateTable(createTable.Table.Name, columns);
-        Console.WriteLine($"Table '{createTable.Table.Name}' created successfully.");
-    }
-
-    private void ExecuteInsertInto(Statement.InsertInto insertInto)
-    {
-        var table = storageEngine.OpenTable(insertInto.Table.Name);
-
-        var values = insertInto.Expressions.Select(EvaluateExpression).ToArray();
-        var rid = table.Insert(values);
-
-        Console.WriteLine($"Inserted record into '{insertInto.Table.Name}' with RID {rid}");
-    }
-
-    private void ExecuteSelect(Statement.Select select)
-    {
-        var table = storageEngine.OpenTable(select.FromClause.TableRefence.Table.Name);
-
-        int rowCount = 0;
-        foreach (var (rid, record) in table.Scan())
+        var table = new ConsoleTable([.. select.ColumnNames]);
+        foreach (var row in select.Rows)
         {
-            Console.WriteLine(string.Join(" | ", record.Select(v => v?.ToString() ?? "NULL")));
-            rowCount++;
+            table.AddRow([.. row.Select(v => v?.ToString() ?? "NULL")]);
         }
 
-        if (rowCount == 0)
-        {
-            Console.WriteLine("(0 rows)");
-        }
-        else
-        {
-            Console.WriteLine($"({rowCount} rows)");
-        }
-    }
-
-    private object? EvaluateExpression(Expression expr)
-    {
-        return expr switch
-        {
-            Expression.NumberLiteral numLit => numLit.Value,
-            Expression.StringLiteral strLit => strLit.Value,
-            Expression.BooleanLiteral boolLit => boolLit.Value,
-            Expression.NullLiteral => null,
-            _ => throw new NotImplementedException($"Expression type {expr.GetType().Name} not supported")
-        };
+        table.Write();
     }
 }

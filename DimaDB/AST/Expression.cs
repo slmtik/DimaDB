@@ -5,7 +5,7 @@ namespace DimaDB.Parsing;
 [AstNode("BooleanLiteral", "bool Value")]
 [AstNode("BinaryOperation", "Expression LeftOperand, AST.BinaryOperator Operator, Expression RightOperand")]
 [AstNode("Parenthesized", "Expression Expression")]
-[AstNode("NumberLiteral", "double Value")]
+[AstNode("NumberLiteral", "int Value")]
 [AstNode("NullLiteral", "")]
 [AstNode("StringLiteral", "string Value")]
 [AstNode("UnaryOperation", "AST.UnaryOperator Operator, Expression RightOperand")]

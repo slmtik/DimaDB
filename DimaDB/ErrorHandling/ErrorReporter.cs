@@ -29,4 +29,9 @@ public class ErrorReporter
 
         _errorCode = 3;
     }
+
+    public void Reset()
+    {
+        _errorCode = 0;
+    }
 }

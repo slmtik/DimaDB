@@ -1,7 +1,7 @@
 ﻿using DimaDB.ErrorHandling;
 using DimaDB.Lexing;
 
-namespace DimaDb.Tests.Lexing;
+namespace DimaDB.Tests.Lexing;
 
 public class LexerTests
 {
