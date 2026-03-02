@@ -12,6 +12,7 @@ public class QueryPlanner
             Statement.Select select => PlanSelect(select),
             Statement.CreateTable createTable => PlanCreateTable(createTable),
             Statement.InsertInto insertInto => PlanInsertInto(insertInto),
+            Statement.Delete delete => PlanDelete(delete),
             _ => throw new NotSupportedException($"Unsupported statement type: {statement.GetType().Name}")
         };
     }
@@ -72,6 +73,18 @@ public class QueryPlanner
             .ToList();
 
         return new QueryPlan.InsertInto(insertInto.Table.Name, values);
+    }
+
+    private static QueryPlan.Delete PlanDelete(Statement.Delete delete)
+    {
+        PlanNode plan = new PlanNode.TableScan(delete.FromClause.TableRefence.Table.Name, delete.FromClause.TableRefence.Alias?.Name);
+
+        if (delete.WhereClause != null)
+        {
+            plan = new PlanNode.Filter(plan, delete.WhereClause.Expression);
+        }
+
+        return new QueryPlan.Delete(delete.FromClause.TableRefence.Table.Name, plan);
     }
 
     private static object? EvaluateExpression(Expression expr)

@@ -7,4 +7,5 @@ public abstract record QueryPlan
     public record Select(PlanNode Root) : QueryPlan;
     public record CreateTable(string TableName, IReadOnlyList<ColumnDefinition> ColumnDefinitions) : QueryPlan;
     public record InsertInto(string TableName, IReadOnlyList<object?> Values) : QueryPlan;
+    public record Delete(string TableName, PlanNode Root) : QueryPlan;
 }

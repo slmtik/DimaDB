@@ -127,4 +127,35 @@ public class LexerTests
 
         Assert.Contains(tokens, t => t.TokenType == TokenType.StringLiteral && source.AsSpan(t.Start, t.Length).ToString() == "'It''s raining'");
     }
+
+    [Fact]
+    public void Tokenize_DeleteFromTable_ReturnsExpectedTokens()
+    {
+        var source = "DELETE FROM users WHERE id = 2;";
+        var tokens = _lexer.Tokenize(source);
+
+        var expectedTypes = new[]
+        {
+            TokenType.Delete,
+            TokenType.From,
+            TokenType.Identifier,
+            TokenType.Where,
+            TokenType.Identifier,
+            TokenType.Equal,
+            TokenType.NumberLiteral,
+            TokenType.Semicolon,
+            TokenType.EoF
+        };
+
+        Assert.Equal(expectedTypes.Length, tokens.Count);
+
+        for (int i = 0; i < expectedTypes.Length; i++)
+        {
+            Assert.Equal(expectedTypes[i], tokens[i].TokenType);
+        }
+
+        Assert.Equal("users", source.AsSpan(tokens[2].Start, tokens[2].Length).ToString());
+        Assert.Equal("id", source.AsSpan(tokens[4].Start, tokens[4].Length).ToString());
+        Assert.Equal("2", source.AsSpan(tokens[6].Start, tokens[6].Length).ToString());
+    }
 }

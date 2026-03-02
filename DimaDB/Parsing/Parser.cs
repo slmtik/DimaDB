@@ -64,6 +64,7 @@ public class Parser(ErrorReporter? errorReporter)
                 case TokenType.Create:
                 case TokenType.Insert:
                 case TokenType.Select:
+                case TokenType.Delete:
                     return;
             }
 
@@ -164,7 +165,28 @@ public class Parser(ErrorReporter? errorReporter)
             return InsertIntoStatementRule();
         }
 
+        if (Match(TokenType.Delete))
+        {
+            return DeleteStatementRule();
+        }
+
         throw new ParserException(_source, Peek, "Expect statement");
+    }
+
+    private Statement.Delete DeleteStatementRule()
+    {
+        Consume(TokenType.From, "Expect 'FROM' after DELETE clause");
+        Clause.FromClause fromClause = FromClauseRule();
+
+        Clause.WhereClause? whereClause = null;
+        if (Match(TokenType.Where))
+        {
+            whereClause = WhereClauseRule();
+        }
+
+        Consume(TokenType.Semicolon, "Expect ';' after SELECT statement");
+
+        return new Statement.Delete(fromClause, whereClause);
     }
 
     private Statement.CreateTable CreateTableStatementRule()

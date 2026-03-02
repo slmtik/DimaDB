@@ -22,9 +22,10 @@ public class Lexer(ErrorReporter? errorReporter)
         {"FALSE", TokenType.False},
         {"TRUE", TokenType.True},
         {"AS", TokenType.As},
-        {"INT", TokenType.Int },
-        {"BOOL", TokenType.Bool },
-        {"TEXT", TokenType.Text },
+        {"INT", TokenType.Int},
+        {"BOOL", TokenType.Bool},
+        {"TEXT", TokenType.Text},
+        {"DELETE", TokenType.Delete},
     };
 
     private List<Token> _tokens = null!;

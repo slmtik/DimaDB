@@ -55,7 +55,7 @@ public class AstPrinter : Expression.IVisitor<string>, Statement.IVisitor<string
 
     public string VisitBinaryOperationExpression(Expression.BinaryOperation expression)
     {
-         return $"{expression.LeftOperand.Accept(this)} {expression.Operator.ToSymbol()} {expression.RightOperand.Accept(this)}";
+        return $"{expression.LeftOperand.Accept(this)} {expression.Operator.ToSymbol()} {expression.RightOperand.Accept(this)}";
     }
 
     public string VisitColumnReferenceExpression(Expression.ColumnReference expression)
@@ -143,6 +143,23 @@ public class AstPrinter : Expression.IVisitor<string>, Statement.IVisitor<string
     public string VisitWhereClause(Clause.WhereClause clause)
     {
         return $"WHERE {clause.Expression.Accept(this)}";
+    }
+
+    public string VisitDeleteStatement(Statement.Delete statement)
+    {
+        var clauses = new List<string> { "DELETE" };
+
+        if (statement.FromClause is { } fromClause)
+        {
+            clauses.Add($"FROM {fromClause.TableRefence.Accept(this)}");
+        }
+
+        if (statement.WhereClause is { } whereClause)
+        {
+            clauses.Add(whereClause.Accept(this));
+        }
+
+        return $"{string.Join("\n", clauses)};";
     }
 }
 

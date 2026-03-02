@@ -61,7 +61,6 @@ public class ParserTests
         var whereRight = Assert.IsType<Expression.NumberLiteral>(where.RightOperand);
         Assert.Equal(30.0, whereRight.Value);
 
-        // LIMIT
         Assert.Equal(10L, select.Limit);
     }
 
@@ -188,5 +187,48 @@ public class ParserTests
 
         var numberLiteral = Assert.IsType<Expression.NumberLiteral>(expressionItem.Expression);
         Assert.Equal(43, numberLiteral.Value);
+    }
+
+    [Fact]
+    public void Parse_DeleteWithWhere_ParsesCorrectly()
+    {
+        var sql = "DELETE FROM users WHERE id = 2;";
+        var tokens = _lexer.Tokenize(sql);
+
+        var statements = _parser.Parse(sql, tokens);
+        Assert.Single(statements);
+
+        var select = Assert.IsType<Statement.Delete>(statements[0]);
+
+        Assert.NotNull(select.FromClause);
+        Assert.Equal("users", select.FromClause!.TableRefence.Table.Name);
+
+        Assert.NotNull(select.WhereClause);
+        var whereClause = Assert.IsType<Clause.WhereClause>(select.WhereClause);
+
+        Assert.NotNull(whereClause.Expression);
+        var where = Assert.IsType<Expression.BinaryOperation>(whereClause.Expression);
+
+        var whereLeft = Assert.IsType<Expression.ColumnReference>(where.LeftOperand);
+        Assert.Equal("id", whereLeft.Column.Name);
+
+        var whereRight = Assert.IsType<Expression.NumberLiteral>(where.RightOperand);
+        Assert.Equal(2, whereRight.Value);
+    }
+
+    [Fact]
+    public void Parse_DeleteWithoutWhere_ParsesCorrectly()
+    {
+        var sql = "DELETE FROM users;";
+        var tokens = _lexer.Tokenize(sql);
+
+        var statements = _parser.Parse(sql, tokens);
+        Assert.Single(statements);
+
+        var select = Assert.IsType<Statement.Delete>(statements[0]);
+
+        Assert.NotNull(select.FromClause);
+        Assert.Equal("users", select.FromClause!.TableRefence.Table.Name);
+        Assert.Null(select.WhereClause);
     }
 }

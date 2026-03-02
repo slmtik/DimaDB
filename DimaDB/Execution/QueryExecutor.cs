@@ -3,6 +3,7 @@ using DimaDB.Storage;
 using DimaDB.Parsing;
 using System.Collections.Immutable;
 using DimaDB.AST;
+using DimaDB.Storage.Types;
 
 namespace DimaDB.Execution;
 
@@ -15,8 +16,25 @@ public class QueryExecutor(StorageEngine storageEngine)
             QueryPlan.Select select => ExecuteSelect(select),
             QueryPlan.CreateTable createTable => ExecuteCreateTable(createTable),
             QueryPlan.InsertInto insertInto => ExecuteInsertInto(insertInto),
+            QueryPlan.Delete delete => ExecuteDelete(delete),
             _ => throw new NotSupportedException($"Plan type {plan.GetType().Name} not supported")
         };
+    }
+
+    private ExecutionResult.Delete ExecuteDelete(QueryPlan.Delete delete)
+    {
+        var records = ExecutePlanNode(delete.Root);
+
+        var table = storageEngine.OpenTable(delete.TableName);
+
+        var counter = 0;
+        foreach (var record in records)
+        {
+            table.Delete(record.RecordId);
+            counter++;
+        }
+
+        return new ExecutionResult.Delete($"{counter} row(s) deleted successfully.");
     }
 
     private ExecutionResult.Select ExecuteSelect(QueryPlan.Select select)
@@ -24,7 +42,7 @@ public class QueryExecutor(StorageEngine storageEngine)
         var columnNames = ExtractColumnNames(select.Root);
 
         var records = ExecutePlanNode(select.Root);
-        var rows = records.ToList();
+        var rows = records.Select(x => x.Values).ToList();
 
         return new ExecutionResult.Select(columnNames, rows);
     }
@@ -32,7 +50,7 @@ public class QueryExecutor(StorageEngine storageEngine)
     private ExecutionResult.CreateTable ExecuteCreateTable(QueryPlan.CreateTable createTable)
     {
         var columns = createTable.ColumnDefinitions
-            .Select(cd => new Storage.Types.ColumnDefinition(cd.Name, cd.Type, true))
+            .Select(cd => new ColumnDefinition(cd.Name, cd.Type, true))
             .ToArray();
 
         storageEngine.CreateTable(createTable.TableName, columns);
@@ -48,7 +66,7 @@ public class QueryExecutor(StorageEngine storageEngine)
         return new ExecutionResult.InsertInto($"Inserted record into '{insertInto.TableName}' with RID {rid}");
     }
 
-    private IEnumerable<IReadOnlyList<object?>> ExecutePlanNode(PlanNode node)
+    private IEnumerable<ResultRow> ExecutePlanNode(PlanNode node)
     {
         return node switch
         {
@@ -60,40 +78,40 @@ public class QueryExecutor(StorageEngine storageEngine)
         };
     }
 
-    private IEnumerable<IReadOnlyList<object?>> ExecuteTableScan(PlanNode.TableScan scan)
+    private IEnumerable<ResultRow> ExecuteTableScan(PlanNode.TableScan scan)
     {
         var table = storageEngine.OpenTable(scan.TableName);
-        foreach (var (_, values) in table.Scan())
+        foreach (var (rid, values) in table.Scan())
         {
-            yield return values.ToImmutableList();
+            yield return new ResultRow(rid, [.. values]);
         }
     }
 
-    private IEnumerable<IReadOnlyList<object?>> ExecuteFilter(PlanNode.Filter filter)
+    private IEnumerable<ResultRow> ExecuteFilter(PlanNode.Filter filter)
     {
         var sourceRecords = ExecutePlanNode(filter.Source);
         var schema = ExtractSchema(filter.Source);
 
-        foreach (var values in sourceRecords)
+        foreach (var rowData in sourceRecords)
         {
-            var record = new Row(schema, values);
+            var record = new Row(schema, rowData.Values);
             var predicateValue = EvaluateExpression(filter.Predicate, record);
 
             if (predicateValue is bool boolValue && boolValue)
             {
-                yield return values;
+                yield return rowData;
             }
         }
     }
 
-    private IEnumerable<IReadOnlyList<object?>> ExecuteProject(PlanNode.Project project)
+    private IEnumerable<ResultRow> ExecuteProject(PlanNode.Project project)
     {
         var schema = project.Source is null ? new RowSchema([]) : ExtractSchema(project.Source);
-        var sourceRecords = project.Source is null ? [[]] : ExecutePlanNode(project.Source);
+        var sourceRecords = project.Source is null ? [new ResultRow(new RecordId(), [])] : ExecutePlanNode(project.Source);
 
-        foreach (var values in sourceRecords)
+        foreach (var rowData in sourceRecords)
         {
-            var record = new Row(schema, values);
+            var record = new Row(schema, rowData.Values);
             var projectedValues = new List<object?>();
 
             foreach (var item in project.Columns)
@@ -101,7 +119,7 @@ public class QueryExecutor(StorageEngine storageEngine)
                 switch (item)
                 {
                     case ProjectionItem.ExpandStar:
-                        projectedValues.AddRange(values);
+                        projectedValues.AddRange(rowData.Values);
                         break;
 
                     case ProjectionItem.ExpandQualifiedStar qualified:
@@ -109,7 +127,7 @@ public class QueryExecutor(StorageEngine storageEngine)
                         {
                             if (schema.Columns[i].TableAlias == qualified.TableName)
                             {
-                                projectedValues.Add(values[i]);
+                                projectedValues.Add(rowData.Values[i]);
                             }
                         }
                         break;
@@ -121,21 +139,21 @@ public class QueryExecutor(StorageEngine storageEngine)
                 }
             }
 
-            yield return projectedValues.AsReadOnly();
+            yield return new ResultRow(rowData.RecordId, projectedValues.AsReadOnly());
         }
     }
 
-    private IEnumerable<IReadOnlyList<object?>> ExecuteLimit(PlanNode.Limit limit)
+    private IEnumerable<ResultRow> ExecuteLimit(PlanNode.Limit limit)
     {
         var sourceRecords = ExecutePlanNode(limit.Source);
         int count = 0;
 
-        foreach (var values in sourceRecords)
+        foreach (var rowData in sourceRecords)
         {
             if (count >= limit.Count)
                 break;
 
-            yield return values;
+            yield return rowData;
             count++;
         }
     }
@@ -312,5 +330,11 @@ public class QueryExecutor(StorageEngine storageEngine)
             Schema = schema;
             Values = values;
         }
+    }
+
+    private readonly struct ResultRow(RecordId recordId, IReadOnlyList<object?> values)
+    {
+        public RecordId RecordId { get; } = recordId;
+        public IReadOnlyList<object?> Values { get; } = values;
     }
 }

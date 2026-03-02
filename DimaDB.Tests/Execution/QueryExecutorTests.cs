@@ -111,7 +111,7 @@ public class QueryExecutorTests : IDisposable
         _executor.Execute(plan);
 
         var table = _storageEngine.OpenTable("users");
-        var (rid, record) = table.Scan().First();
+        var (_, record) = table.Scan().First();
         Assert.Null(record[1]);
         Assert.Null(record[2]);
     }
@@ -138,10 +138,8 @@ public class QueryExecutorTests : IDisposable
         var scan = new PlanNode.TableScan("users", null);
         var project = new PlanNode.Project(scan, [new ProjectionItem.ExpandStar()]);
 
-        // Act
         var result = ExecuteSelect(project);
 
-        // Assert
         Assert.Equal(3, result.Rows.Count);
     }
 
@@ -515,5 +513,40 @@ public class QueryExecutorTests : IDisposable
         Assert.IsType<string>(firstRow[1]);
         Assert.IsType<string>(firstRow[2]);
         Assert.IsType<bool>(firstRow[3]);
+    }
+
+    [Fact]
+    public void Execute_Delete_AllRecords()
+    {
+        CreateTestTable();
+        InsertTestData();
+        var scan = new PlanNode.TableScan("users", null);
+        var delete = new QueryPlan.Delete("users", scan);
+
+        _executor.Execute(delete);
+        
+        var table = _storageEngine.OpenTable("users").Scan().ToList();
+        
+        Assert.Empty(table);
+    }
+
+    [Fact]
+    public void Execute_Delete_WithWhere()
+    {
+        CreateTestTable();
+        InsertTestData();
+        var scan = new PlanNode.TableScan("users", null);
+        var filter = new PlanNode.Filter(scan, new Expression.BinaryOperation(
+            new Expression.ColumnReference(null, new Identifier("id", false)),
+            BinaryOperator.Equal,
+            new Expression.NumberLiteral(1)
+        ));
+        var delete = new QueryPlan.Delete("users", filter);
+
+        _executor.Execute(delete);
+
+        var table = _storageEngine.OpenTable("users").Scan().ToList();
+
+        Assert.Equal(2, table.Count);
     }
 }

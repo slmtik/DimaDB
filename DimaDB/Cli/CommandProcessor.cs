@@ -74,6 +74,10 @@ public class CommandProcessor(ErrorReporter errorReporter, StorageEngine storage
             case ExecutionResult.InsertInto ii:
                 Console.WriteLine(ii.Message);
                 break;
+
+            case ExecutionResult.Delete d:
+                Console.WriteLine(d.Message);
+                break;
         }
     }
 

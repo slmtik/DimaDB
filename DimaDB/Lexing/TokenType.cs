@@ -19,6 +19,7 @@ public enum TokenType
     False, 
     True,
     As,
+    Delete,
 
     //Types
     Int, 

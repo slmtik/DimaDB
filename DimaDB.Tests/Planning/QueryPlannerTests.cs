@@ -119,7 +119,7 @@ public class QueryPlannerTests
 
         Assert.IsType<QueryPlan.Select>(plan);
         var select = (QueryPlan.Select)plan;
-        
+
         Assert.IsType<PlanNode.Project>(select.Root);
     }
 
@@ -132,7 +132,7 @@ public class QueryPlannerTests
 
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
-        
+
         Assert.IsType<PlanNode.Filter>(project.Source);
     }
 
@@ -145,7 +145,7 @@ public class QueryPlannerTests
 
         var select = (QueryPlan.Select)plan;
         var limit = select.Root as PlanNode.Limit;
-        
+
         Assert.NotNull(limit);
         Assert.Equal(10, limit!.Count);
     }
@@ -162,7 +162,7 @@ public class QueryPlannerTests
         var project = (PlanNode.Project)limit.Source;
         var filter = (PlanNode.Filter)project.Source;
         var scan = (PlanNode.TableScan)filter.Source;
-        
+
         Assert.Equal(20, limit.Count);
         Assert.Equal("users", scan.TableName);
     }
@@ -176,7 +176,7 @@ public class QueryPlannerTests
 
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
-        
+
         Assert.Single(project.Columns);
         Assert.IsType<ProjectionItem.ExpandStar>(project.Columns[0]);
     }
@@ -190,7 +190,7 @@ public class QueryPlannerTests
 
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
-        
+
         var qualified = project.Columns[0] as ProjectionItem.ExpandQualifiedStar;
         Assert.NotNull(qualified);
         Assert.Equal("users", qualified!.TableName);
@@ -205,7 +205,7 @@ public class QueryPlannerTests
 
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
-        
+
         var expr = project.Columns[0] as ProjectionItem.Expression;
         Assert.NotNull(expr);
         Assert.Null(expr!.Alias);
@@ -220,7 +220,7 @@ public class QueryPlannerTests
 
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
-        
+
         var expr = (ProjectionItem.Expression)project.Columns[0];
         Assert.Equal("user_id", expr.Alias);
     }
@@ -234,7 +234,7 @@ public class QueryPlannerTests
 
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
-        
+
         Assert.Equal(3, project.Columns.Count);
     }
 
@@ -248,7 +248,7 @@ public class QueryPlannerTests
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
         var scan = (PlanNode.TableScan)project.Source;
-        
+
         Assert.Equal("users", scan.TableName);
         Assert.Equal("u", scan.Alias);
     }
@@ -263,7 +263,7 @@ public class QueryPlannerTests
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
         var scan = (PlanNode.TableScan)project.Source;
-        
+
         Assert.Null(scan.Alias);
     }
 
@@ -277,7 +277,7 @@ public class QueryPlannerTests
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
         var filter = (PlanNode.Filter)project.Source;
-        
+
         Assert.NotNull(filter.Predicate);
         Assert.IsType<Expression.BinaryOperation>(filter.Predicate);
     }
@@ -293,7 +293,7 @@ public class QueryPlannerTests
         var project = (PlanNode.Project)select.Root;
         var filter = (PlanNode.Filter)project.Source;
         var binOp = (Expression.BinaryOperation)filter.Predicate;
-        
+
         Assert.Equal(BinaryOperator.And, binOp.Operator);
     }
 
@@ -320,7 +320,7 @@ public class QueryPlannerTests
         var filter = (PlanNode.Filter)project.Source;
         var binOp = (Expression.BinaryOperation)filter.Predicate;
         var literal = (Expression.NumberLiteral)binOp.RightOperand;
-        
+
         Assert.Equal(19, literal.Value);
     }
 
@@ -346,7 +346,7 @@ public class QueryPlannerTests
         var select = (QueryPlan.Select)plan;
         var project = (PlanNode.Project)select.Root;
         var filter = project.Source as PlanNode.Filter;
-        
+
         Assert.NotNull(filter);
     }
 
@@ -359,5 +359,33 @@ public class QueryPlannerTests
 
         var select = (QueryPlan.Select)plan;
         Assert.IsType<PlanNode.Limit>(select.Root);
+    }
+
+    [Fact]
+    public void Plan_Delete_WithoutWhere_CreatesTableScanPlan()
+    {
+        const string sql = "DELETE FROM users;";
+
+        var plan = Plan(sql);
+
+        Assert.IsType<QueryPlan.Delete>(plan);
+        var delete = (QueryPlan.Delete)plan;
+        var scan = (PlanNode.TableScan)delete.Root;
+        Assert.Equal("users", scan.TableName);
+        Assert.NotNull(delete.Root);
+        Assert.IsType<PlanNode.TableScan>(scan);
+    }
+
+    [Fact]
+    public void Plan_Delete_WithWhere_CreatesFilterPlan()
+    {
+        const string sql = "DELETE FROM users WHERE id = 1;";
+
+        var plan = Plan(sql);
+
+        var delete = (QueryPlan.Delete)plan;
+        Assert.IsType<PlanNode.Filter>(delete.Root);
+        var filter = (PlanNode.Filter)delete.Root!;
+        Assert.IsType<PlanNode.TableScan>(filter.Source);
     }
 }
